@@ -1012,9 +1012,23 @@ export const MultiMonitorsControlsManager = GObject.registerClass(
             // modes too, otherwise it overwrites these dimensions and caches
             // a different mode (depending on theme padding and monitor size).
             // Reset the cached index when rotating: both modes use index 0.
-            grid.setGridModes([{ columns, rows }]);
-            grid._setGridMode(-1);
-            grid._setGridMode(0);
+            if (grid.setGridModes) {
+                grid.setGridModes([{ columns, rows }]);
+                grid._setGridMode(-1);
+                grid._setGridMode(0);
+            } else {
+                // GNOME 50 dropped grid modes: IconGridLayout takes fixed
+                // dimensions and applies them in adaptToSize(), which skips
+                // work while the page size is unchanged, so force it.
+                layoutManager._fixedCols = columns;
+                layoutManager._fixedRows = rows;
+                const { _pageWidth: width, _pageHeight: height } = layoutManager;
+                if (width > 0 && height > 0) {
+                    layoutManager._pageWidth = 0;
+                    layoutManager.adaptToSize(width, height);
+                }
+                grid.queue_relayout();
+            }
             this._lastAppDisplayLayout = layoutKey;
         }
 
