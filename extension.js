@@ -154,12 +154,31 @@ export default class MultiMonitorsExtension extends Extension {
 		if (this._mainPanelStyle === undefined)
 			this._mainPanelStyle = Main.panel.get_style();
 		const color = panelColor(this._settings, 'main');
-		Main.panel.set_style(color
+		const style = color
 			? `${this._mainPanelStyle ?? ''} background-color: ${color} !important;`
-			: this._mainPanelStyle);
+			: this._mainPanelStyle;
+		// Only guard the style while a color is set, so the shell and other
+		// extensions stay free to restyle the panel otherwise.
+		this._mainPanelColorStyle = color ? style : null;
+		Main.panel.set_style(style);
+
+		// Something resets the panel style after the extension applied it (seen
+		// right after login), which silently drops the configured color.
+		if (!this._mainPanelStyleId) {
+			this._mainPanelStyleId = Main.panel.connect('notify::style', () => {
+				const expected = this._mainPanelColorStyle;
+				if (expected && Main.panel.get_style() !== expected)
+					Main.panel.set_style(expected);
+			});
+		}
 	}
 
 	_restoreMainPanelColor() {
+		if (this._mainPanelStyleId) {
+			Main.panel.disconnect(this._mainPanelStyleId);
+			this._mainPanelStyleId = 0;
+		}
+		this._mainPanelColorStyle = null;
 		if (this._mainPanelStyle === undefined)
 			return;
 		Main.panel.set_style(this._mainPanelStyle);
