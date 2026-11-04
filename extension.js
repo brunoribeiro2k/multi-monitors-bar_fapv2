@@ -404,6 +404,15 @@ export default class MultiMonitorsExtension extends Extension {
 		this._mmMonitors = 0;
 		this._primaryIndex = -1;
 
+		// GNOME Shell destroys uiGroup from C at logout, skipping our JS
+		// destroy() overrides. Run a proper disable() while the shell is intact.
+		this._uiGroupDestroyId = Main.layoutManager.uiGroup.connect('destroy', () => {
+			this._uiGroupDestroyId = 0;
+			this.disable();
+			// disable() rebuilds the hot corners the shell just removed.
+			Main.layoutManager._destroyHotCorners();
+		});
+
 		this._settings = this.getSettings();
 		this._mu_settings = new Gio.Settings({ schema: MUTTER_SCHEMA });
 		this._applyMainPanelClipping();
@@ -490,6 +499,10 @@ export default class MultiMonitorsExtension extends Extension {
 	}
 
 	disable() {
+		if (this._uiGroupDestroyId) {
+			Main.layoutManager.uiGroup.disconnect(this._uiGroupDestroyId);
+			this._uiGroupDestroyId = 0;
+		}
 		this._monitorIndicators?.destroy();
 		this._monitorIndicators = null;
 		this._destroyPrimaryDock();
